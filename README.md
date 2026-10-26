@@ -1,0 +1,134 @@
+# kakoune-tmux-light-dark
+
+Follow the terminal's light/dark colour scheme in [Kakoune](https://kakoune.org),
+using tmux as the source of truth.
+
+When your terminal flips between a light and a dark palette — at sunrise, or when
+you toggle macOS Appearance or your desktop's colour scheme — Kakoune switches its
+colourscheme with it. There is no polling and no timer: tmux reports the change and
+this plugin reacts.
+
+## Requirements
+
+- **tmux 3.8 or newer**, with `theme detect` (the default) so tmux follows the
+  outer terminal.
+- A terminal that reports its colour scheme to tmux (Ghostty, iTerm2, kitty, foot,
+  and others that speak the mode 2031 protocol).
+
+Check both with one command, from a pane:
+
+```sh
+tmux display -p '#{client_theme}'      # "dark" or "light" → supported
+                                       # empty or "unknown" → not supported
+```
+
+`appearance-enable` runs the same check and refuses with a message if it fails, so
+a machine that cannot support this is told so once instead of silently doing
+nothing.
+
+## Install
+
+Source the plugin, set the two colourschemes, enable it:
+
+```kak
+source ~/.config/kak/plugins/kakoune-tmux-light-dark/rc/appearance.kak
+
+set-option global appearance_dark_theme  'gruvbox-dark'
+set-option global appearance_light_theme 'gruvbox-light'
+appearance-enable
+```
+
+Put this after any plugin that provides those colourschemes.
+
+## Options
+
+| Option | Default | Meaning |
+|---|---|---|
+| `appearance_dark_theme` | `default` | colourscheme applied in dark mode |
+| `appearance_light_theme` | `default` | colourscheme applied in light mode |
+
+These are the plugin's own options; Kakoune has no theme option of its own
+(`colorscheme` is a command), so nothing global is clobbered.
+
+## Commands
+
+| Command | Purpose |
+|---|---|
+| `appearance-enable` | check support, install the tmux hooks, apply the current scheme |
+| `appearance-disable` | remove the hooks and stop switching |
+| `appearance-refresh` | re-query tmux and apply the reported scheme |
+
+## User hooks
+
+Fire after a scheme has been applied, for anything that has to follow along —
+Giallo themes, terminal colour accessories, status-line tweaks:
+
+```kak
+hook global User appearance-dark  %{ … }
+hook global User appearance-light %{ … }
+```
+
+## How it works
+
+tmux is already light/dark aware — it is how `themeblue`, `themeyellow` and
+friends resolve — and it exposes both the state and the transition:
+
+```
+Ghostty ──mode 2031──▶ tmux ──client-dark-theme / client-light-theme hooks──▶ us
+```
+
+`appearance-enable` registers two hooks at reserved indexes, so a user's own
+`client-*-theme` hooks keep working:
+
+```sh
+tmux set-hook -g 'client-dark-theme[50]'  'run-shell "sh <repo>/scripts/tmux-notify.sh dark"'
+tmux set-hook -g 'client-light-theme[50]' 'run-shell "sh <repo>/scripts/tmux-notify.sh light"'
+```
+
+The hook name is authoritative, so the payload carries the mode as an argument and
+nothing is queried. The script pushes `appearance-detected <mode>` into every live
+Kakoune session, skipping `kak -l` entries marked `(dead)`.
+
+This is why the plugin can react to a *terminal* theme rather than the OS
+appearance: OSC colour queries are swallowed by tmux, but tmux re-broadcasts the
+scheme protocol inward and turns it into these hooks.
+
+## No polling
+
+Nothing here has a timer, and `tests/test_no_polling.py` fails the build if one
+appears — no `sleep` loop, no `start-interval`, no re-query. The only work done is
+in response to a tmux hook, plus one query when you run `appearance-enable`.
+
+## Limitations
+
+- **Only works under tmux.** Kakoune run outside tmux is refused at enable time.
+- **A transition fires the hook two to four times.** Applying the same mode twice
+  is free: `appearance-detected` returns before `colorscheme` if nothing changed.
+- **`theme` must stay `detect`.** If you pin `set -g theme light` in `tmux.conf`,
+  tmux stops listening to the terminal and the hooks never fire.
+- **Multiple clients with different schemes**: the last transition wins, because
+  there is one colourscheme per Kakoune server. That state is normal only if the
+  clients are on terminals with different themes.
+- The terminal must report its scheme; `#{client_theme}` is `unknown` otherwise.
+
+## Tests
+
+```sh
+python3 -m unittest discover -s tests -v
+```
+
+The suite is hermetic: a stub `tmux` and a stub `kak` stand in for the real
+binaries, plus real Kakoune sessions for the plugin itself. No tmux, no
+appearance changes, nothing to clean up.
+
+## Uninstall
+
+```kak
+appearance-disable
+```
+
+then remove the `source` line and the two `set-option` lines from `kakrc`.
+
+## License
+
+MIT.
