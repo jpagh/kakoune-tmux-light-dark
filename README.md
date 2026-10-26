@@ -10,10 +10,14 @@ this plugin reacts.
 
 ## Requirements
 
-- **tmux 3.8 or newer**, with `theme detect` (the default) so tmux follows the
-  outer terminal.
-- A terminal that reports its colour scheme to tmux (Ghostty, iTerm2, kitty, foot,
-  and others that speak the mode 2031 protocol).
+- **tmux with the `client-dark-theme` and `client-light-theme` hooks.** Developed
+  and tested against tmux 3.8. tmux validates hook names, so on a build without
+  them `appearance-enable` says so and refuses instead of half-installing.
+  `theme detect` (the default) must be in effect: with `set -g theme light` or
+  `dark` tmux stops listening to the terminal and no hook ever fires.
+- A terminal that reports its colour scheme, or one whose background tmux can
+  infer it from. tmux 3.8 reports the terminal's own theme rather than guessing;
+  earlier versions guess from the background colour.
 
 Check both with one command, from a pane:
 
