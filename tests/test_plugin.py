@@ -29,7 +29,8 @@ esac
 class Session:
     """One Kakoune server with the plugin loaded, plus helpers to poke it."""
 
-    def __init__(self, testcase, *, client_theme="light", tmux=True):
+    def __init__(self, testcase, *, client_theme="light", tmux=True,
+                 os_theme="light", darwin=True):
         self.testcase = testcase
         self.tmp = tempfile.TemporaryDirectory(prefix="lt-test-kak-")
         testcase.addCleanup(self.tmp.cleanup)
@@ -46,6 +47,18 @@ class Session:
         tmux_stub = self.bin / "tmux"
         tmux_stub.write_text(TMUX_STUB)
         tmux_stub.chmod(0o755)
+        # The plugin falls back to the OS appearance when tmux reports nothing;
+        # stub both so the host's real settings cannot leak into these tests.
+        stubs = {
+            "uname": "#!/bin/sh\necho Darwin\n",
+            "defaults": ("#!/bin/sh\n"
+                         'if [ "${TEST_OS_THEME:-none}" = dark ]; then echo Dark; exit 0; fi\n'
+                         "exit 1\n"),
+        }
+        for name, body in stubs.items():
+            path = self.bin / name
+            path.write_text(body)
+            path.chmod(0o755)
         self.tmux_log = self.root / "tmux.log"
         self.hook_log = self.root / "hooks.log"
         self.theme_file = self.root / "client-theme"
@@ -59,7 +72,9 @@ hook global User appearance-dark %{{ nop %sh{{ echo dark >> "$TEST_HOOK_LOG" }} 
 hook global User appearance-light %{{ nop %sh{{ echo light >> "$TEST_HOOK_LOG" }} }}
 try %{{ appearance-enable }}
 """)
-        self.env = dict(os.environ, XDG_CONFIG_HOME=str(self.root),
+        if not darwin:
+            (self.bin / "uname").write_text("#!/bin/sh\necho Linux\n")
+        self.env = dict(os.environ, XDG_CONFIG_HOME=str(self.root), TEST_OS_THEME=os_theme,
                         PATH=f"{self.bin}{os.pathsep}{os.environ['PATH']}",
                         TEST_TMUX_LOG=str(self.tmux_log),
                         TEST_HOOK_LOG=str(self.hook_log),
@@ -146,8 +161,19 @@ class EnableTest(unittest.TestCase):
         self.assertEqual(session.option("appearance_mode"), "")
         self.assertEqual(session.tmux_calls(), "", "must not touch tmux")
 
-    def test_refuses_when_tmux_reports_no_scheme(self):
-        session = Session(self, client_theme="unknown")
+    def test_falls_back_to_the_os_appearance_when_tmux_is_silent(self):
+        """An ssh client reports no theme; the OS is still the right answer."""
+        session = Session(self, client_theme="", os_theme="dark")
+        self.assertEqual(session.option("appearance_enabled"), "true")
+        self.assertEqual(session.option("appearance_mode"), "dark")
+        self.assertEqual(session.option("test_marker"), "test-dark")
+
+    def test_falls_back_to_light_when_the_os_preference_is_absent(self):
+        session = Session(self, client_theme="", os_theme="light")
+        self.assertEqual(session.option("appearance_mode"), "light")
+
+    def test_refuses_when_no_source_answers(self):
+        session = Session(self, client_theme="", os_theme="light", darwin=False)
         self.assertEqual(session.option("appearance_enabled"), "false")
         self.assertEqual(session.option("appearance_mode"), "")
 

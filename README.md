@@ -19,16 +19,18 @@ this plugin reacts.
   infer it from. tmux 3.8 reports the terminal's own theme rather than guessing;
   earlier versions guess from the background colour.
 
-Check both with one command, from a pane:
+Check with one command, from a pane:
 
 ```sh
-tmux display -p '#{client_theme}'      # "dark" or "light" → supported
-                                       # empty or "unknown" → not supported
+tmux display -p '#{client_theme}'      # "dark" or "light" → tmux knows
+                                       # empty or "unknown" → falls back to the OS
 ```
 
-`appearance-enable` runs the same check and refuses with a message if it fails, so
-a machine that cannot support this is told so once instead of silently doing
-nothing.
+`client_theme` is **per client**, so it is empty for a detached session or for an
+ssh client whose terminal never reports a scheme. In that case the plugin asks
+the OS once (`defaults read -g AppleInterfaceStyle` on macOS) rather than leaving
+Kakoune on its built-in colours; there is no polling either way. When neither
+source answers, `appearance-enable` says so once and installs nothing.
 
 ## Install
 

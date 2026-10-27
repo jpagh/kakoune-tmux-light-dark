@@ -24,7 +24,7 @@ FORBIDDEN = {
 
 class NoPollingTest(unittest.TestCase):
     def test_sources_exist(self):
-        self.assertEqual(len(SOURCES), 2, f"expected rc + script, found {SOURCES}")
+        self.assertEqual(len(SOURCES), 3, f"expected rc + two scripts, found {SOURCES}")
 
     def test_no_timer_anywhere(self):
         for path in SOURCES:

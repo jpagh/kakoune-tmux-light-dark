@@ -46,11 +46,13 @@ define-command appearance-enable -docstring 'Follow the terminal light/dark sche
             printf "echo 'appearance: requires tmux, not enabling'\n"
             exit 0
         fi
-        mode=$(tmux display -p '#{client_theme}' 2>/dev/null) || mode=
+        # tmux's client_theme, or the OS appearance when no client reports one
+        # (a detached session, or an ssh client whose terminal says nothing).
+        mode=$(sh "$kak_opt_appearance_root/scripts/detect-theme.sh" 2>/dev/null) || mode=
         case "$mode" in
             dark|light) ;;
             *)
-                printf "echo 'appearance: tmux reports no colour scheme; see README (client_theme is %s)'\n" "${mode:-empty}"
+                printf "echo 'appearance: no colour scheme available; see README'\n"
                 exit 0
                 ;;
         esac
@@ -82,7 +84,7 @@ define-command appearance-disable -docstring 'Stop following the terminal light/
 
 define-command appearance-refresh -docstring 'Re-query tmux and apply the reported scheme' %{
     evaluate-commands %sh{
-        mode=$(tmux display -p '#{client_theme}' 2>/dev/null) || mode=
+        mode=$(sh "$kak_opt_appearance_root/scripts/detect-theme.sh" 2>/dev/null) || mode=
         case "$mode" in dark|light) printf 'appearance-apply %s\n' "$mode" ;; esac
     }
 }
