@@ -167,6 +167,13 @@ class SwitchTest(unittest.TestCase):
         self.assertEqual(session.option("test_marker"), "test-light")
         self.assertEqual(session.hooks(), ["light", "dark", "light"])
 
+    def test_same_mode_refresh_reconciles_without_public_notification(self):
+        session = Session(self, client_theme="light")
+        session.send("set-option global appearance_reconcile_command 'set-option global test_marker reconciled'")
+        session.send("appearance-refresh")
+        self.assertEqual(session.option("test_marker"), "reconciled")
+        self.assertEqual(session.hooks(), ["light"])
+
     def test_unknown_mode_is_ignored(self):
         session = Session(self, client_theme="light")
         session.send("appearance-detected purple")

@@ -12,11 +12,11 @@ provide-module light-dark %{
 
 declare-option str appearance_dark_theme 'default'
 declare-option str appearance_light_theme 'default'
+declare-option str appearance_reconcile_command nop
 declare-option -hidden str appearance_mode ''
 declare-option -hidden bool appearance_enabled false
 
-# Apply the colourscheme for a mode and notify anyone listening. Unchanged modes
-# are ignored: one transition fires the tmux hook two to four times.
+# Reconcile every apply; public notifications describe transitions only.
 define-command -hidden -params 1 appearance-apply %{
     evaluate-commands %sh{
         case "$1" in
@@ -24,10 +24,14 @@ define-command -hidden -params 1 appearance-apply %{
             light) theme=$kak_opt_appearance_light_theme ;;
             *) exit 0 ;;
         esac
-        [ "$1" != "$kak_opt_appearance_mode" ] || exit 0
-        printf 'set-option global appearance_mode %s\n' "$1"
+        changed=false
+        [ "$1" = "$kak_opt_appearance_mode" ] || changed=true
         printf "colorscheme '%s'\n" "$theme"
-        printf 'trigger-user-hook appearance-%s\n' "$1"
+        printf 'set-option global appearance_mode %s\n' "$1"
+        printf '%s\n' "$kak_opt_appearance_reconcile_command"
+        if [ "$changed" = true ]; then
+            printf 'trigger-user-hook appearance-%s\n' "$1"
+        fi
         printf 'echo -debug "appearance: %s, colourscheme %s"\n' "$1" "$theme"
     }
 }
